@@ -1,0 +1,27 @@
+services:
+  server:
+    build: .
+    container_name: server
+    privileged: true # Required for 'tc'
+    networks:
+      ppgcc_net:
+        ipv4_address: 172.20.0.2
+    command: ["python3", "server.py"]
+
+  client:
+    build: .
+    container_name: client
+    privileged: true # Required for 'tc'
+    networks:
+      ppgcc_net:
+        ipv4_address: 172.20.0.3
+    depends_on:
+      - server
+    command: ["sleep", "infinity"] # Keep alive to run tests manually or via script
+
+networks:
+  ppgcc_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
