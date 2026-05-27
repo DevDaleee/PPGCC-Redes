@@ -1,0 +1,7 @@
+protocol,scenario,throughput_mean,throughput_std,elapsed_mean,elapsed_std,retransmits_mean,retransmits_std,n_runs
+RUDP,A,8.9682,0.6095,0.0628,0.008,1.8,1.3038,5
+RUDP,B,3.349,0.6411,0.348,0.0408,47.0,7.746,5
+RUDP,C,1.1508,0.175,1.2114,0.1088,185.2,13.0077,5
+TCP,A,9.6212,0.2428,0.0524,0.0036,0.0,0.0,5
+TCP,B,3.5813,0.5807,0.2298,0.0217,0.0,0.0,5
+TCP,C,1.7237,0.5011,0.7767,0.0551,0.0,0.0,5

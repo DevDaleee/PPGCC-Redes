@@ -31,42 +31,34 @@ os.makedirs(LOG_DIR, exist_ok=True)
 
 def handle_tcp_client(conn: socket.socket, addr):
     print(f"[TCP] Conexão de {addr}")
-    
-    # Recebe cabeçalho X-Custom-Auth (primeira linha terminada em '\n')
-    header_line = b""
-    while b"\n" not in header_line:
-        chunk = conn.recv(256)
-        if not chunk:
-            break
-        header_line += chunk
-    if not header_line:
+
+    # makefile garante leitura linha-a-linha sem consumir bytes do arquivo
+    rfile = conn.makefile('rb')
+
+    auth_line = rfile.readline()
+    if not auth_line:
         conn.close()
         return
-
-    auth_received = header_line.decode().strip()
+    auth_received = auth_line.decode('utf-8', errors='replace').strip()
     print(f"[TCP] Auth recebido: {auth_received}")
 
-    # Recebe nome do arquivo (segunda linha)
-    fname_line = b""
-    while b"\n" not in fname_line:
-        chunk = conn.recv(256)
-        if not chunk:
-            break
-        fname_line += chunk
-    
-    # Formato esperado do cliente pode incluir o cenário: "filename|scenario"
-    client_info = fname_line.decode().strip().split("|")
+    fname_line = rfile.readline()
+    if not fname_line:
+        conn.close()
+        return
+    # Formato: "filename|scenario\n"
+    client_info = fname_line.decode('utf-8', errors='replace').strip().split("|")
     filename = client_info[0]
     scenario = client_info[1] if len(client_info) > 1 else "unknown"
-    
+
     save_path = os.path.join(LOG_DIR, f"recv_tcp_{filename}")
     logger = TransferLogger("TCP", scenario, "recv")
     logger.start()
 
-    # Recebe dados
+    # Lê o restante como binário puro (dados do arquivo)
     with open(save_path, "wb") as f:
         while True:
-            data = conn.recv(CHUNK_SIZE)
+            data = rfile.read(CHUNK_SIZE)
             if not data:
                 break
             f.write(data)
@@ -126,17 +118,17 @@ def run_rudp_server():
             client_info = payload.decode(errors="replace").split("|")
             filename = client_info[0]
             scenario = client_info[1] if len(client_info) > 1 else "unknown"
-            
+
             save_path = os.path.join(LOG_DIR, f"recv_rudp_{filename}")
             file_obj  = open(save_path, "wb")
             expected  = 0
             buf       = {}
-            
+
             logger = TransferLogger("RUDP", scenario, "recv")
             logger.start()
-            
+
             print(f"[R-UDP] Sessão iniciada por {addr} | Arquivo: {filename} | Cenário: {scenario}")
-            
+
             # ACK do SYN
             ack_pkt = pack_packet(0, 0, FLAG_ACK, b"", X_CUSTOM_AUTH)
             sock.sendto(ack_pkt, addr)
@@ -148,18 +140,18 @@ def run_rudp_server():
                 _flush_buffer(file_obj, buf, expected)
                 file_obj.close()
                 file_obj = None
-            
+
             if logger:
                 logger.stop()
                 logger.print_summary()
                 logger.save_csv()
                 logger.save_json()
-            
+
             # ACK do FIN
             ack_pkt = pack_packet(0, seq, FLAG_ACK | FLAG_FIN, b"", X_CUSTOM_AUTH)
             sock.sendto(ack_pkt, addr)
             print(f"[R-UDP] Transferência concluída. Arquivo salvo em {save_path}")
-            
+
             # Reset para próxima conexão
             expected = 0
             buf      = {}
@@ -201,13 +193,13 @@ def main():
     # Iniciando as threads para ambos os modos
     tcp_thread = threading.Thread(target=run_tcp_server, daemon=True)
     rudp_thread = threading.Thread(target=run_rudp_server, daemon=True)
-    
+
     tcp_thread.start()
     rudp_thread.start()
-    
+
     print("=== Servidor PPGCC Multimodal Iniciado ===")
     print("Pressione Ctrl+C para encerrar.")
-    
+
     try:
         while True:
             time.sleep(1)

@@ -16,8 +16,8 @@ MAX_RETRIES    = 10            # tentativas antes de desistir
 
 # --- Cabeçalho de autenticação ---
 # Altere para sua matrícula e nome
-MATRICULA = "000000"
-NOME      = "Seu Nome Aqui"
+MATRICULA = "20261005092"
+NOME      = "Marcos Dalessandro Cavalcante Lima"
 X_CUSTOM_AUTH = f"{MATRICULA}:{NOME}"
 
 # --- Logging ---
