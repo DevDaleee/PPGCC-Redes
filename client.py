@@ -91,6 +91,11 @@ class SRSender:
         #   "timer":   float,        # timestamp do último envio
         # }
 
+        # RTO Adaptativo (Jacobson/Karels)
+        self.srtt = None           # Smoothed Round Trip Time
+        self.rttvar = None         # RTT Variation
+        self.rto = TIMEOUT         # Valor inicial do timeout
+
         self.lock   = threading.Lock()
         self.done   = False        # FIN confirmado?
         self.fin_sent = False
@@ -98,7 +103,7 @@ class SRSender:
     # --- Thread de recepção de ACKs ---
 
     def _ack_listener(self):
-        self.sock.settimeout(1.0)  # Pequeno timeout para não travar no encerramento
+        self.sock.settimeout(1.0)
         while not self.done:
             try:
                 raw, _ = self.sock.recvfrom(65535)
@@ -109,8 +114,8 @@ class SRSender:
 
             _, ack_num, flags, payload, auth, _ = unpack_packet(raw)
 
-            # Recebeu ACK ou FIN-ACK
             if flags & FLAG_ACK:
+                now = time.perf_counter()
                 with self.lock:
                     if flags & FLAG_FIN:
                         print("[R-UDP] FIN-ACK recebido no listener.")
@@ -118,12 +123,44 @@ class SRSender:
                         return
 
                     if ack_num in self.window and not self.window[ack_num]["acked"]:
+                        # Atualiza RTO adaptativo se for a primeira retransmissão
+                        if self.window[ack_num]["retries"] == 0:
+                            sample_rtt = now - self.window[ack_num]["timer"]
+                            if self.srtt is None:
+                                self.srtt = sample_rtt
+                                self.rttvar = sample_rtt / 2
+                            else:
+                                alpha = 0.125
+                                beta = 0.25
+                                self.rttvar = (1 - beta) * self.rttvar + beta * abs(self.srtt - sample_rtt)
+                                self.srtt = (1 - alpha) * self.srtt + alpha * sample_rtt
+                            self.rto = max(0.2, self.srtt + 4 * self.rttvar)
+
                         self.window[ack_num]["acked"] = True
                         self.logger.log_event("acked", seq=ack_num)
+
+                        # Fast Retransmit: se recebemos um ACK superior à base,
+                        # retransmitimos a base imediatamente (assumindo perda)
+                        if ack_num > self.base:
+                            if self.base in self.window and not self.window[self.base]["acked"]:
+                                self._retransmit(self.base, now)
+
                         # Avança base
                         while self.base in self.window and self.window[self.base]["acked"]:
                             del self.window[self.base]
                             self.base += 1
+
+    def _retransmit(self, seq, now):
+        slot = self.window[seq]
+        if slot["retries"] >= MAX_RETRIES:
+            print(f"[R-UDP] seq={seq} excedeu MAX_RETRIES — abortando")
+            self.done = True
+            return
+        self.sock.sendto(slot["pkt"], self.addr)
+        slot["timer"] = now
+        slot["retries"] += 1
+        self.logger.retransmits += 1
+        self.logger.log_event("retransmit", seq=seq, note=f"retry={slot['retries']} RTO={self.rto:.3f}")
 
     # --- Verificação e retransmissão por timeout ---
 
@@ -131,16 +168,8 @@ class SRSender:
         now = time.perf_counter()
         with self.lock:
             for seq, slot in list(self.window.items()):
-                if not slot["acked"] and (now - slot["timer"]) >= TIMEOUT:
-                    if slot["retries"] >= MAX_RETRIES:
-                        print(f"[R-UDP] seq={seq} excedeu MAX_RETRIES — abortando")
-                        self.done = True
-                        return
-                    self.sock.sendto(slot["pkt"], self.addr)
-                    slot["timer"]   = now
-                    slot["retries"] += 1
-                    self.logger.retransmits += 1
-                    self.logger.log_event("retransmit", seq=seq, note=f"retry={slot['retries']}")
+                if not slot["acked"] and (now - slot["timer"]) >= self.rto:
+                    self._retransmit(seq, now)
 
     # --- Envio de um bloco de dados ---
 
@@ -249,13 +278,14 @@ def send_rudp(host: str, filepath: str, scenario: str):
 
     # Aguarda todos os ACKs pendentes
     print("[R-UDP] Aguardando ACKs finais...")
-    deadline = time.perf_counter() + TIMEOUT * 3
+    deadline = time.perf_counter() + TIMEOUT * 5
     while time.perf_counter() < deadline:
-        with sender.lock:
+        with sender.cv:
             if not sender.window:
                 break
+            # Espera por mudanças ou timeout
+            sender.cv.wait(timeout=0.1)
         sender._check_timeouts()
-        time.sleep(0.05)
 
     sender.send_fin()
     sender.done = True
@@ -270,6 +300,30 @@ def send_rudp(host: str, filepath: str, scenario: str):
 
 
 # ──────────────────────────────────────────────────────────────────
+# ENTRY POINT
+# ──────────────────────────────────────────────────────────────────
+
+def main():
+    parser = argparse.ArgumentParser(description="Cliente TCP/R-UDP — PPGCC/UFPI")
+    parser.add_argument("--mode",     choices=["tcp", "rudp"], required=True)
+    parser.add_argument("--host",     default="127.0.0.1")
+    parser.add_argument("--file",     required=True, help="Arquivo a enviar")
+    parser.add_argument("--scenario", choices=["A", "B", "C"], default="A")
+    args = parser.parse_args()
+
+    if not os.path.isfile(args.file):
+        print(f"Erro: arquivo '{args.file}' não encontrado.")
+        sys.exit(1)
+
+    if args.mode == "tcp":
+        send_tcp(args.host, args.file, args.scenario)
+    else:
+        send_rudp(args.host, args.file, args.scenario)
+
+
+if __name__ == "__main__":
+    main()
+
 # ENTRY POINT
 # ──────────────────────────────────────────────────────────────────
 

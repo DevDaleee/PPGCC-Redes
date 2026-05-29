@@ -9,10 +9,10 @@ SERVER_PORT_TCP  = 5001
 SERVER_PORT_RUDP = 5002
 
 # --- Transferência ---
-CHUNK_SIZE     = 4096          # bytes por bloco de dados
-WINDOW_SIZE    = 8             # tamanho da janela (Selective Repeat)
-TIMEOUT        = 2.0           # segundos até retransmissão
-MAX_RETRIES    = 10            # tentativas antes de desistir
+CHUNK_SIZE     = 1450          # bytes por bloco de dados
+WINDOW_SIZE    = 256           # tamanho da janela (Selective Repeat)
+TIMEOUT        = 1.0           # segundos até retransmissão (valor inicial adaptativo)
+MAX_RETRIES    = 10            # máximo de retransmissões por pacote
 
 # --- Cabeçalho de autenticação ---
 # Altere para sua matrícula e nome

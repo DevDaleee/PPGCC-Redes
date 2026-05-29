@@ -21,10 +21,7 @@ Análise comparativa entre sistemas reais (TCP e R-UDP via Sockets + Docker) e m
 │   ├── capture.sh         # Captura tcpdump → PCAP + CSV
 │   └── run_tests.sh       # Orquestrador: roda todos os testes
 ├── analysis/
-│   ├── analyze.py         # Gráficos Plotly + Seaborn (análise Fase 1)
-│   └── plots/             # Saída dos gráficos (gerada automaticamente)
-├── simpy/
-│   └── simulator.py       # Simulador SimPy — 10 tarefas de validação (Fase 2)
+│   └── analysis.py        # Gráficos Plotly + Seaborn (análise Fase 1)
 └── logs/                  # CSV/JSON/PCAP gerados pelos testes
 ```
 
@@ -41,32 +38,32 @@ docker compose up -d --build
 ### 2. Rodar todos os testes automaticamente (dentro do cliente)
 
 ```bash
+# Sobe os containers
+docker compose up -d --build
+
+# Entra no cliente
 docker exec -it client bash
+
+# Roda tudo automaticamente (cenários A, B, C — TCP e R-UDP)
+chmod +x scripts/*.sh
 ./scripts/run_tests.sh
 ```
 
 O script:
-- Gera um arquivo de teste de 10 MB
+- Gera um arquivo o arquivo de teste de 10MB
 - Para cada cenário (A, B, C): aplica `tc qdisc`, captura com `tcpdump`, roda TCP e R-UDP
 - Salva logs em `logs/` (CSV, JSON, PCAP)
 
-### 3. Rodar manualmente (cenário específico)
+### 3. Gerar gráficos de análise
+
+Ao concluir os teste, copie os logs para fora do container
 
 ```bash
-# No container cliente — aplica cenário B
-./scripts/set_scenario.sh B
-
-# Em outro terminal, captura tráfego UDP por 120s
-./scripts/capture.sh B udp 120 &
-
-# Roda transferência R-UDP
-python3 client.py --mode rudp --host 172.20.0.2 --file test.bin --scenario B
-```
-
-### 4. Gerar gráficos de análise
-
-```bash
+# Fora do container
+docker cp client:/app/logs ./logs
+#você pode criar uma venv ou instalar os pacotes nativamente
 pip install -r requirements.txt
+
 python3 analysis/analyze.py
 ```
 
@@ -80,34 +77,28 @@ Gráficos gerados em `analysis/plots/`:
 
 ---
 
-## Fase 2 — Modelagem Estocástica (SimPy)
+### 4.Verificação de Autenticação (PCAP)
 
+Para validar o envio do cabeçalho personalizado `X-Custom-Auth` (Matrícula e Nome) nos arquivos de captura `.pcap`, utilize os seguintes métodos:
+
+### 1. Wireshark (GUI)
+1. Abra o arquivo `.pcap` desejado.
+2. No filtro de exibição, digite: `tcp.payload contains "X-Custom-Auth"`.
+3. Clique com o botão direito no pacote encontrado e selecione **Follow > TCP Stream**.
+
+### 2. tshark (CLI)
+Para extrair a linha de autenticação diretamente via terminal:
 ```bash
-pip install -r requirements.txt
-python3 simpy/simulator.py
+tshark -r logs/capture_tcp_A_XXXX.pcap -Y 'tcp.payload contains "X-Custom-Auth"' -x
 ```
 
-### 10 Tarefas de Validação
+### 3. tcpdump (CLI)
+Caso queira apenas confirmar a presença via `grep`:
+```bash
+tcpdump -A -r logs/capture_tcp_A_XXXX.pcap | grep "X-Custom-Auth"
+```
 
-| # | Tarefa | Descrição |
-|---|--------|-----------|
-| T1 | Modelagem de Atraso | Distribuição normal calibrada por cenário |
-| T2 | Perda de Bernoulli | Valida taxa SimPy vs tc qdisc |
-| T3 | Timeout e Retransmissão | Conta retransmissões por cenário |
-| T4 | Curva de Vazão | Throughput de 1 MB a 100 MB |
-| T5 | Sensibilidade da Janela | Saturação teórica variando N |
-| T6 | Validação de RTT | RTT simulado vs esperado (2×delay) |
-| T7 | Impacto do Jitter | Throughput vs std do atraso |
-| T8 | Cenário de Estresse | 25% de perda, múltiplos delays |
-| T9 | Análise de Eficiência | Razão pacotes de dados / controle |
-| T10 | Convergência Estatística | IC 95% com 30+ execuções |
 
-Saídas em `analysis/plots/`:
-- `t1_delay_distribution.html/png` até `t10_convergence.html/png`
-- `real_vs_simulated.html/png` — Comparativo Real vs Simulado
-- `simulation_results.json` — Dados consolidados de todas as tarefas
-
----
 
 ## Cenários de Rede
 
@@ -118,19 +109,3 @@ Saídas em `analysis/plots/`:
 | C | 20% | 100 ms | `tc qdisc add dev eth0 root netem delay 100ms loss 20%` |
 
 ---
-
-## Critérios de Avaliação (Fase 1 — 10 pts)
-
-| Critério | Pontos |
-|----------|--------|
-| Ambiente Docker & TC | 1.0 |
-| Protocolo R-UDP (Selective Repeat) | 2.5 |
-| Validação TCPDump (PCAP + X-Custom-Auth) | 1.5 |
-| Análise Estatística (gráficos) | 2.0 |
-| Integração de Dados (app vs tcpdump) | 1.0 |
-| Relatório SBC | 1.0 |
-| Vídeo Demonstrativo | 1.0 |
-
-**Datas de entrega:**
-- Fase 1: **29/05/2026**
-- Fase 2: **25/06/2026**
