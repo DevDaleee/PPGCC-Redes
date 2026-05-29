@@ -1,8 +1,3 @@
-# ============================================================
-# utils.py — Utilitários compartilhados
-# PPGCC/UFPI — Redes de Computadores 2026-1
-# ============================================================
-
 import hashlib
 import time
 import csv
@@ -22,22 +17,6 @@ def checksum_md5(data: bytes) -> bytes:
 
 def verify_checksum(data: bytes, received_checksum: bytes) -> bool:
     return checksum_md5(data) == received_checksum
-
-
-# ------------------------------------------------------------------
-# Empacotamento de pacotes R-UDP
-#
-# Formato do cabeçalho (26 bytes fixos):
-#   [seq_num: 4B][ack_num: 4B][flags: 1B][chunk_size: 4B][checksum: 16B][auth_len: 1B]
-#   [auth: auth_len bytes]
-#   [payload: chunk_size bytes]
-#
-# Flags:
-#   0x01 = DATA
-#   0x02 = ACK
-#   0x04 = FIN
-#   0x08 = SYN
-# ------------------------------------------------------------------
 
 FLAG_DATA = 0x01
 FLAG_ACK  = 0x02

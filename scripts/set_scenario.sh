@@ -1,13 +1,3 @@
-# =============================================================
-# set_scenario.sh — Aplica regras de tc qdisc no container
-#
-# Uso (dentro do container client):
-#   ./scripts/set_scenario.sh A     # 0% perda / 10ms delay
-#   ./scripts/set_scenario.sh B     # 10% perda / 50ms delay
-#   ./scripts/set_scenario.sh C     # 20% perda / 100ms delay
-#   ./scripts/set_scenario.sh reset # Remove regras
-# =============================================================
-
 IFACE="eth0"
 SCENARIO="${1:-A}"
 

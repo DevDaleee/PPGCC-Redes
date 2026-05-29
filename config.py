@@ -1,8 +1,3 @@
-# ============================================================
-# config.py — Configurações globais do projeto
-# PPGCC/UFPI — Redes de Computadores 2026-1
-# ============================================================
-
 # --- Rede ---
 DEFAULT_HOST = "0.0.0.0"
 SERVER_PORT_TCP  = 5001

@@ -1,16 +1,3 @@
-# analyze.py — Análise estatística e geração de gráficos
-#
-# Gera:
-#   - Throughput médio ± desvio padrão (TCP vs R-UDP por cenário)
-#   - Retransmissões por cenário
-#   - Atraso (tempo de transferência) por cenário
-#   - Integração: bytes da aplicação vs bytes capturados (tcpdump)
-#   - Todos os gráficos salvos em analysis/plots/
-#
-# Uso:
-#   python3 analysis/analyze.py
-# =============================================================
-
 import os
 import json
 import glob
@@ -57,41 +44,13 @@ def load_app_metrics() -> pd.DataFrame:
             print(f"[WARN] Erro ao ler {path}: {e}")
 
     if not records:
-        print("[WARN] Nenhum JSON de métricas encontrado. Usando dados simulados para demonstração.")
-        return _synthetic_data()
+        print("[WARN] Nenhum JSON de métricas encontrado.")
+        return
 
     df = pd.DataFrame(records)
     # Normaliza nomes de coluna
     df.columns = [c.lower() for c in df.columns]
     return df
-
-
-def _synthetic_data() -> pd.DataFrame:
-    """Dados sintéticos para demonstrar os gráficos quando não há execuções reais."""
-    np.random.seed(42)
-    rows = []
-    params = {
-        ("TCP",  "A"): (9.5,  0.3,  0.05, 0),
-        ("TCP",  "B"): (4.2,  0.8,  0.25, 0),
-        ("TCP",  "C"): (1.8,  0.5,  0.80, 0),
-        ("RUDP", "A"): (8.9,  0.4,  0.06, 2),
-        ("RUDP", "B"): (3.5,  0.9,  0.35, 45),
-        ("RUDP", "C"): (1.2,  0.4,  1.20, 180),
-    }
-    for (proto, sc), (thr_mean, thr_std, ela_mean, retx) in params.items():
-        for _ in range(5):   # 5 execuções por combinação
-            thr  = max(0.1, np.random.normal(thr_mean, thr_std))
-            ela  = max(0.01, np.random.normal(ela_mean, ela_mean * 0.1))
-            rows.append({
-                "protocol":        proto,
-                "scenario":        sc,
-                "throughput_mbps": round(thr, 4),
-                "elapsed_s":       round(ela, 4),
-                "retransmits":     int(abs(np.random.poisson(max(0, retx)))),
-                "bytes_total":     10 * 1024 * 1024,
-            })
-    return pd.DataFrame(rows)
-
 
 def load_pcap_csv() -> pd.DataFrame:
     """Carrega CSVs gerados pelo tshark e agrega bytes por protocolo/cenário."""
@@ -105,7 +64,10 @@ def load_pcap_csv() -> pd.DataFrame:
         protocol = parts[1].upper()
         scenario = parts[2].upper()
         try:
-            df = pd.read_csv(path)
+            # Algumas capturas antigas podem estar malformadas (múltiplos IPs sem aspas)
+            # Usamos on_bad_lines='skip' para ignorar essas linhas ruidosas.
+            df = pd.read_csv(path, on_bad_lines='skip', engine='python')
+            
             # tshark exporta frame.len como coluna de tamanho
             size_col = next((c for c in df.columns if "len" in c.lower()), None)
             total_bytes = int(df[size_col].sum()) if size_col else 0
@@ -159,9 +121,8 @@ def plot_throughput(df: pd.DataFrame):
         template="plotly_white",
         legend_title="Protocolo",
     )
-    path = os.path.join(PLOT_DIR, "throughput.html")
-    fig.write_html(path)
-    fig.write_image(path.replace(".html", ".png"), scale=2)
+    path = os.path.join(PLOT_DIR, "throughput.png")
+    fig.write_image(path, scale=2)
     print(f"[PLOT] {path}")
     return fig
 
@@ -195,9 +156,8 @@ def plot_transfer_time(df: pd.DataFrame):
         template="plotly_white",
         legend_title="Protocolo",
     )
-    path = os.path.join(PLOT_DIR, "transfer_time.html")
-    fig.write_html(path)
-    fig.write_image(path.replace(".html", ".png"), scale=2)
+    path = os.path.join(PLOT_DIR, "transfer_time.png")
+    fig.write_image(path, scale=2)
     print(f"[PLOT] {path}")
     return fig
 
@@ -229,9 +189,8 @@ def plot_retransmissions(df: pd.DataFrame):
         yaxis_title="Retransmissões",
         template="plotly_white",
     )
-    path = os.path.join(PLOT_DIR, "retransmissions.html")
-    fig.write_html(path)
-    fig.write_image(path.replace(".html", ".png"), scale=2)
+    path = os.path.join(PLOT_DIR, "retransmissions.png")
+    fig.write_image(path, scale=2)
     print(f"[PLOT] {path}")
     return fig
 
@@ -285,9 +244,8 @@ def plot_data_integration(app_df: pd.DataFrame, pcap_df: pd.DataFrame):
         template="plotly_white",
         legend_title="Fonte",
     )
-    path = os.path.join(PLOT_DIR, "data_integration.html")
-    fig.write_html(path)
-    fig.write_image(path.replace(".html", ".png"), scale=2)
+    path = os.path.join(PLOT_DIR, "data_integration.png")
+    fig.write_image(path, scale=2)
     print(f"[PLOT] {path}")
 
 
@@ -319,9 +277,8 @@ def plot_packet_loss_impact(df: pd.DataFrame):
         template="plotly_white",
         legend_title="Protocolo",
     )
-    path = os.path.join(PLOT_DIR, "loss_impact.html")
-    fig.write_html(path)
-    fig.write_image(path.replace(".html", ".png"), scale=2)
+    path = os.path.join(PLOT_DIR, "loss_impact.png")
+    fig.write_image(path, scale=2)
     print(f"[PLOT] {path}")
 
 

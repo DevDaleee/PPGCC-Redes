@@ -1,11 +1,3 @@
-# ============================================================
-# server.py — Servidor TCP / R-UDP (Multimodal)
-# PPGCC/UFPI — Redes de Computadores 2026-1
-#
-# Uso:
-#   python server.py
-# ============================================================
-
 import socket
 import threading
 import argparse
@@ -94,7 +86,7 @@ def run_tcp_server():
 def run_rudp_server():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((DEFAULT_HOST, SERVER_PORT_RUDP))
-    # Removemos o timeout global para que o servidor fique sempre ouvindo
+
     print(f"[R-UDP] Servidor ativo em {DEFAULT_HOST}:{SERVER_PORT_RUDP}")
 
     expected = 0
@@ -175,7 +167,7 @@ def run_rudp_server():
         elif seq < expected:
             pass
 
-        # ACK individual
+        # ACK individua
         ack_pkt = pack_packet(0, seq, FLAG_ACK, b"", X_CUSTOM_AUTH)
         sock.sendto(ack_pkt, addr)
 
@@ -197,7 +189,7 @@ def main():
     tcp_thread.start()
     rudp_thread.start()
 
-    print("=== Servidor PPGCC Multimodal Iniciado ===")
+    print("=== Servidor Multimodal Iniciado ===")
     print("Pressione Ctrl+C para encerrar.")
 
     try:

@@ -1,12 +1,3 @@
-# ============================================================
-# client.py — Cliente TCP / R-UDP (Selective Repeat)
-# PPGCC/UFPI — Redes de Computadores 2026-1
-#
-# Uso:
-#   python client.py --mode tcp   --file arquivo.bin --host 172.20.0.2 --scenario A
-#   python client.py --mode rudp  --file arquivo.bin --host 172.20.0.2 --scenario B
-# ============================================================
-
 import socket
 import threading
 import argparse
@@ -32,6 +23,7 @@ from utils import (
 def send_tcp(host: str, filepath: str, scenario: str):
     filename = os.path.basename(filepath)
     filesize = os.path.getsize(filepath)
+
     print(f"[TCP] Enviando '{filename}' ({filesize:,} bytes)  →  {host}:{SERVER_PORT_TCP}")
 
     logger = TransferLogger("TCP", scenario, "send")
@@ -84,12 +76,6 @@ class SRSender:
         self.next_seq = 0          # próximo seq a enviar
 
         self.window: dict[int, dict] = {}
-        # window[seq] = {
-        #   "pkt":     bytes,        # pacote empacotado
-        #   "acked":   bool,
-        #   "retries": int,
-        #   "timer":   float,        # timestamp do último envio
-        # }
 
         # RTO Adaptativo (Jacobson/Karels)
         self.srtt = None           # Smoothed Round Trip Time
@@ -163,7 +149,6 @@ class SRSender:
         self.logger.log_event("retransmit", seq=seq, note=f"retry={slot['retries']} RTO={self.rto:.3f}")
 
     # --- Verificação e retransmissão por timeout ---
-
     def _check_timeouts(self):
         now = time.perf_counter()
         with self.lock:
@@ -172,7 +157,6 @@ class SRSender:
                     self._retransmit(seq, now)
 
     # --- Envio de um bloco de dados ---
-
     def send_chunk(self, seq: int, payload: bytes):
         pkt = pack_packet(seq, 0, FLAG_DATA, payload, X_CUSTOM_AUTH)
         with self.lock:
@@ -188,7 +172,6 @@ class SRSender:
         self.logger.log_event("sent", seq=seq, size=len(payload))
 
     # --- Espera a janela ter espaço ---
-
     def wait_for_window(self):
         while True:
             with self.lock:
@@ -200,7 +183,6 @@ class SRSender:
             time.sleep(0.01)
 
     # --- Envia FIN e aguarda confirmação via flag ---
-
     def send_fin(self):
         fin_pkt = pack_packet(self.next_seq, 0, FLAG_FIN, b"", X_CUSTOM_AUTH)
         print("[R-UDP] Enviando FIN...")
@@ -208,7 +190,7 @@ class SRSender:
             with self.lock:
                 if self.done: return
             self.sock.sendto(fin_pkt, self.addr)
-            
+
             # Aguarda um pouco o ACK vir pela thread listener
             for _ in range(int(TIMEOUT * 10)):
                 time.sleep(0.1)
@@ -217,7 +199,7 @@ class SRSender:
                         print("[R-UDP] FIN confirmado (via listener).")
                         return
             print(f"[R-UDP] FIN timeout (tentativa {attempt+1})")
-        
+
         print("[R-UDP] FIN não confirmado — encerrando mesmo assim.")
         with self.lock:
             self.done = True
@@ -226,6 +208,7 @@ class SRSender:
 def send_rudp(host: str, filepath: str, scenario: str):
     filename = os.path.basename(filepath)
     filesize = os.path.getsize(filepath)
+
     print(f"[R-UDP] Enviando '{filename}' ({filesize:,} bytes)  →  {host}:{SERVER_PORT_RUDP}")
 
     logger = TransferLogger("RUDP", scenario, "send")
@@ -304,31 +287,7 @@ def send_rudp(host: str, filepath: str, scenario: str):
 # ──────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="Cliente TCP/R-UDP — PPGCC/UFPI")
-    parser.add_argument("--mode",     choices=["tcp", "rudp"], required=True)
-    parser.add_argument("--host",     default="127.0.0.1")
-    parser.add_argument("--file",     required=True, help="Arquivo a enviar")
-    parser.add_argument("--scenario", choices=["A", "B", "C"], default="A")
-    args = parser.parse_args()
-
-    if not os.path.isfile(args.file):
-        print(f"Erro: arquivo '{args.file}' não encontrado.")
-        sys.exit(1)
-
-    if args.mode == "tcp":
-        send_tcp(args.host, args.file, args.scenario)
-    else:
-        send_rudp(args.host, args.file, args.scenario)
-
-
-if __name__ == "__main__":
-    main()
-
-# ENTRY POINT
-# ──────────────────────────────────────────────────────────────────
-
-def main():
-    parser = argparse.ArgumentParser(description="Cliente TCP/R-UDP — PPGCC/UFPI")
+    parser = argparse.ArgumentParser(description="Cliente TCP/R-UDP")
     parser.add_argument("--mode",     choices=["tcp", "rudp"], required=True)
     parser.add_argument("--host",     default="127.0.0.1")
     parser.add_argument("--file",     required=True, help="Arquivo a enviar")

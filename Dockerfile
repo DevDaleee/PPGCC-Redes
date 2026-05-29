@@ -25,4 +25,4 @@ COPY . .
 RUN mkdir -p logs
 
 # Default command
-CMD ["python3", "server.py", "--mode", "tcp"]
+CMD ["python3", "server.py"]
